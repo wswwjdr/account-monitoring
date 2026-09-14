@@ -2,12 +2,34 @@
 
 在本机管理账号。导入时必须先选择账号分类；当前版本仅「Outlook 四段」（邮箱、密码、Client ID、刷新令牌），用微软 Refresh Token 换 Access Token，经 Microsoft Graph 查看收件箱。
 
-仅绑定 `127.0.0.1`。凭证明文存在本地 SQLite，不要部署到公网，不要提交 `data/`。
+仅绑定 `127.0.0.1`。凭证明文存在 PostgreSQL，不要部署到公网，不要把数据库口令或 `.env` 提交进仓库。
 
 ## 环境
 
 - Python 3.11+
 - Node.js 18+
+- PostgreSQL 14+
+
+## 数据库
+
+在 PostgreSQL 中先建库，再复制配置并填写账号密码：
+
+```powershell
+cd backend
+copy .env.example .env
+```
+
+编辑 `backend/.env`：
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=account_monitoring
+DB_USER=postgres
+DB_PASSWORD=your_password
+```
+
+启动时会按模型自动建表。
 
 ## 启动
 

@@ -14,11 +14,9 @@ class TokenRefreshError(Exception):
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
-    """把可能被 SQLite 读成 naive 的时间统一成 UTC。"""
+    """将带时区的时间统一为 UTC，便于与当前时间比较。"""
     if value is None:
         return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
 
 
