@@ -6,6 +6,7 @@ import {
   batchDeleteAccounts,
   batchMoveAccounts,
   deleteAccount,
+  getAccountImportInfo,
   listAccountTypes,
   listAccounts,
   listGroups,
@@ -40,6 +41,11 @@ const moveGroupId = ref("");
 const errorTitle = ref("操作失败");
 const errorDetail = ref("");
 const showError = ref(false);
+const showInfo = ref(false);
+const infoBusy = ref(false);
+const infoCopyHint = ref("");
+const importInfo = ref(null);
+const infoEmail = ref("");
 
 const selectedCount = computed(() => selectedIds.value.length);
 const allSelected = computed(
@@ -293,6 +299,47 @@ function openMail(row) {
   router.push({ name: "mail", params: { id: String(row.id) } });
 }
 
+/**
+ * 打开导入信息弹窗，按需拉取四段凭证。
+ */
+async function openInfo(row) {
+  infoEmail.value = row.email;
+  importInfo.value = null;
+  infoCopyHint.value = "";
+  showInfo.value = true;
+  infoBusy.value = true;
+  try {
+    importInfo.value = await getAccountImportInfo(row.id);
+  } catch (error) {
+    showInfo.value = false;
+    setMessage(error.message, "error");
+  } finally {
+    infoBusy.value = false;
+  }
+}
+
+function closeInfo() {
+  showInfo.value = false;
+  importInfo.value = null;
+  infoCopyHint.value = "";
+  infoEmail.value = "";
+}
+
+/**
+ * 将导入整行复制到剪贴板。
+ */
+async function copyImportLine() {
+  if (!importInfo.value) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(importInfo.value.import_line);
+    infoCopyHint.value = "已复制整行";
+  } catch (error) {
+    infoCopyHint.value = error.message || "复制失败";
+  }
+}
+
 onMounted(async () => {
   try {
     await loadGroups();
@@ -357,7 +404,6 @@ onMounted(async () => {
           </th>
           <th>#</th>
           <th>邮箱</th>
-          <th>密码</th>
           <th>分类</th>
           <th>分组</th>
           <th>导入时间</th>
@@ -372,7 +418,6 @@ onMounted(async () => {
           </td>
           <td class="mono">{{ index + 1 }}</td>
           <td>{{ row.email }}</td>
-          <td>{{ row.password }}</td>
           <td>{{ row.account_type_label }}</td>
           <td>{{ row.group_name }}</td>
           <td class="mono">{{ formatDateTime(row.imported_at) }}</td>
@@ -388,13 +433,14 @@ onMounted(async () => {
           </td>
           <td>
             <div class="row-actions">
+              <button class="linkish" type="button" @click="openInfo(row)">信息</button>
               <button
                 v-if="row.supports_mail"
                 class="linkish"
                 type="button"
                 @click="openMail(row)"
               >
-                查看
+                查看邮件
               </button>
               <button class="linkish danger" type="button" @click="removeAccount(row)">删除</button>
             </div>
@@ -402,6 +448,44 @@ onMounted(async () => {
         </tr>
       </tbody>
     </table>
+  </div>
+
+  <div v-if="showInfo" class="overlay" @click.self="closeInfo">
+    <div class="modal">
+      <h2>导入信息</h2>
+      <p class="hint">{{ infoEmail }} 导入时的四段凭证。</p>
+      <p v-if="infoBusy" class="hint">加载中…</p>
+      <template v-else-if="importInfo">
+        <label class="field">
+          <span>邮箱</span>
+          <input class="search info-value" type="text" readonly :value="importInfo.email" />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input class="search info-value" type="text" readonly :value="importInfo.password" />
+        </label>
+        <label class="field">
+          <span>Client ID</span>
+          <input class="search info-value" type="text" readonly :value="importInfo.client_id" />
+        </label>
+        <label class="field">
+          <span>刷新令牌</span>
+          <textarea class="info-token" readonly :value="importInfo.refresh_token" rows="7" />
+        </label>
+        <p v-if="infoCopyHint" class="hint">{{ infoCopyHint }}</p>
+      </template>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" type="button" @click="closeInfo">关闭</button>
+        <button
+          class="btn"
+          type="button"
+          :disabled="infoBusy || !importInfo"
+          @click="copyImportLine"
+        >
+          复制整行
+        </button>
+      </div>
+    </div>
   </div>
 
   <div v-if="showImport" class="overlay" @click.self="closeImport">

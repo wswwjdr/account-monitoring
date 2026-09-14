@@ -11,6 +11,7 @@ from app.models import Account
 from app.schemas import (
     AccountBatchMoveBody,
     AccountIdsBody,
+    AccountImportInfoOut,
     AccountOut,
     BatchChangeOut,
     ImportApplyBody,
@@ -23,9 +24,11 @@ from app.services.account_import import apply_import, preview_import
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
+IMPORT_LINE_SEPARATOR = "----"
+
 
 def _to_out(account: Account) -> AccountOut:
-    """序列化账号；无分组时名称为未分组。"""
+    """序列化账号摘要；不含密码、Client ID、刷新令牌。无分组时名称为未分组。"""
     spec = get_account_type(account.account_type)
     return AccountOut(
         id=account.id,
@@ -35,13 +38,25 @@ def _to_out(account: Account) -> AccountOut:
         account_type_label=spec.label,
         supports_mail=spec.supports_mail,
         email=account.email,
-        password=account.password,
-        client_id=account.client_id,
         imported_at=account.imported_at,
         token_status=account.token_status,
         token_error=account.token_error,
         created_at=account.created_at,
         updated_at=account.updated_at,
+    )
+
+
+def _to_import_info(account: Account) -> AccountImportInfoOut:
+    """序列化导入凭证；用 ---- 拼回一行便于复制。"""
+    import_line = IMPORT_LINE_SEPARATOR.join(
+        [account.email, account.password, account.client_id, account.refresh_token]
+    )
+    return AccountImportInfoOut(
+        email=account.email,
+        password=account.password,
+        client_id=account.client_id,
+        refresh_token=account.refresh_token,
+        import_line=import_line,
     )
 
 
@@ -85,6 +100,15 @@ def get_account(account_id: int, db: Session = Depends(get_db)) -> AccountOut:
     if account is None:
         raise HTTPException(status_code=404, detail="账号不存在")
     return _to_out(account)
+
+
+@router.get("/{account_id}/import-info", response_model=AccountImportInfoOut)
+def get_account_import_info(account_id: int, db: Session = Depends(get_db)) -> AccountImportInfoOut:
+    """查看导入该账号时的四段凭证；不进入列表摘要。"""
+    account = db.get(Account, account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return _to_import_info(account)
 
 
 @router.post("/import/preview", response_model=ImportPreviewOut)

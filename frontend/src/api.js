@@ -56,6 +56,13 @@ export function getAccount(id) {
   return request(`/api/accounts/${id}`);
 }
 
+/**
+ * 读取导入该账号时的四段凭证（含密码与刷新令牌）。
+ */
+export function getAccountImportInfo(id) {
+  return request(`/api/accounts/${id}/import-info`);
+}
+
 export function previewImport(text, accountType) {
   return request("/api/accounts/import/preview", {
     method: "POST",

@@ -33,8 +33,6 @@ class AccountOut(BaseModel):
     account_type_label: str
     supports_mail: bool
     email: str
-    password: str
-    client_id: str
     imported_at: datetime
     token_status: str
     token_error: str | None = None
@@ -42,6 +40,16 @@ class AccountOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AccountImportInfoOut(BaseModel):
+    """导入该账号时的凭证；仅「信息」接口返回，不进列表摘要。"""
+
+    email: str
+    password: str
+    client_id: str
+    refresh_token: str
+    import_line: str
 
 
 class ImportTextBody(BaseModel):
