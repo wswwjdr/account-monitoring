@@ -1,6 +1,9 @@
-"""解析「邮箱----密码----Client ID----刷新令牌」文本导入。"""
+"""按账号分类解析导入文本。本版仅 Outlook 四段。"""
 
+from collections.abc import Callable
 from dataclasses import dataclass
+
+from app.account_types import OUTLOOK_FOUR, require_account_type
 
 
 FIELD_SEP = "----"
@@ -8,7 +11,7 @@ FIELD_SEP = "----"
 
 @dataclass(frozen=True)
 class ParsedAccount:
-    """一行四段凭证解析结果。"""
+    """一行凭证解析结果。"""
 
     email: str
     password: str
@@ -36,8 +39,8 @@ def split_credential_line(line: str) -> list[str]:
     raise ValueError("字段分隔符必须是 Tab 或 ----")
 
 
-def parse_import_text(text: str) -> list[ParsedAccount]:
-    """解析导入文本，任一非法行立即抛错，空结果也视为错误。"""
+def _parse_outlook_four(text: str) -> list[ParsedAccount]:
+    """解析 Outlook 四段文本，任一非法行立即抛错，空结果也视为错误。"""
     if text is None:
         raise ValueError("导入文本不能为空")
     rows: list[ParsedAccount] = []
@@ -65,3 +68,17 @@ def parse_import_text(text: str) -> list[ParsedAccount]:
     if not rows:
         raise ValueError("没有可导入的账号")
     return rows
+
+
+_PARSERS: dict[str, Callable[[str], list[ParsedAccount]]] = {
+    OUTLOOK_FOUR: _parse_outlook_four,
+}
+
+
+def parse_import_text(text: str, account_type: str) -> list[ParsedAccount]:
+    """按分类解析导入文本；未选分类或没有对应解析器立即失败。"""
+    code = require_account_type(account_type)
+    parser = _PARSERS.get(code)
+    if parser is None:
+        raise ValueError("不支持的账号分类")
+    return parser(text)

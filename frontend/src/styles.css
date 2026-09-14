@@ -378,6 +378,12 @@ tbody tr:hover {
   background: #fff;
 }
 
+.modal textarea:disabled {
+  color: var(--muted);
+  background: rgba(247, 251, 250, 0.8);
+  cursor: not-allowed;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

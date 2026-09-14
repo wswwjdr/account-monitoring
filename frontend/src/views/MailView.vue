@@ -76,7 +76,8 @@ onMounted(loadInbox);
     <div>
       <h1>{{ account ? account.email : "邮件" }}</h1>
       <p v-if="account">
-        导入时间 {{ formatDateTime(account.imported_at) }} · {{ account.group_name }} · 令牌
+        导入时间 {{ formatDateTime(account.imported_at) }} · {{ account.account_type_label }} ·
+        {{ account.group_name }} · 令牌
         <span
           class="status"
           :class="[account.token_status, { 'has-tip': account.token_status === 'error' }]"

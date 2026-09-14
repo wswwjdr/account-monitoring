@@ -1,4 +1,4 @@
-"""账号与分组表：同邮箱允许多版本；分组可空，空则视为未分组。"""
+"""账号与分组表：同分类同邮箱允许多版本；分组可空，空则视为未分组。"""
 
 from datetime import datetime, timezone
 
@@ -26,12 +26,13 @@ class Group(Base):
 
 
 class Account(Base):
-    """一条 Outlook 四段凭证记录，同一邮箱可有多条导入版本。"""
+    """一条账号凭证记录。分类决定导入格式；同一分类下同一邮箱可有多条导入版本。"""
 
     __tablename__ = "accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     group_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("groups.id"), nullable=True, index=True)
+    account_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     password: Mapped[str] = mapped_column(String(512), nullable=False)
     client_id: Mapped[str] = mapped_column(String(64), nullable=False)

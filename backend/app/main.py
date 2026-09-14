@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import ensure_schema
-from app.routers import accounts, groups, mails
+from app.routers import account_types, accounts, groups, mails
 
 ensure_schema()
 
@@ -21,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(account_types.router)
 app.include_router(accounts.router)
 app.include_router(groups.router)
 app.include_router(mails.router)

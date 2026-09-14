@@ -28,7 +28,7 @@ export async function request(path, options = {}) {
   return response.json();
 }
 
-export function listAccounts(q, groupId) {
+export function listAccounts(q, groupId, accountType) {
   const params = new URLSearchParams();
   if (q && q.trim()) {
     params.set("q", q.trim());
@@ -38,26 +38,37 @@ export function listAccounts(q, groupId) {
   } else if (groupId) {
     params.set("group_id", String(groupId));
   }
+  if (accountType) {
+    params.set("account_type", String(accountType));
+  }
   const query = params.toString() ? `?${params.toString()}` : "";
   return request(`/api/accounts${query}`);
+}
+
+/**
+ * 读取系统账号分类目录，供导入与筛选下拉使用。
+ */
+export function listAccountTypes() {
+  return request("/api/account-types");
 }
 
 export function getAccount(id) {
   return request(`/api/accounts/${id}`);
 }
 
-export function previewImport(text) {
+export function previewImport(text, accountType) {
   return request("/api/accounts/import/preview", {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, account_type: accountType }),
   });
 }
 
-export function applyImport(text, groupId, conflictMode, wipeAll) {
+export function applyImport(text, groupId, conflictMode, wipeAll, accountType) {
   return request("/api/accounts/import", {
     method: "POST",
     body: JSON.stringify({
       text,
+      account_type: accountType,
       group_id: groupId == null ? null : groupId,
       conflict_mode: conflictMode,
       wipe_all: Boolean(wipeAll),

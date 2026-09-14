@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.account_types import get_account_type
 from app.config import DEFAULT_MESSAGE_TOP, MAX_MESSAGE_TOP
 from app.db import get_db
 from app.models import Account
@@ -14,10 +15,13 @@ router = APIRouter(prefix="/api/accounts", tags=["mails"])
 
 
 def _require_account(db: Session, account_id: int) -> Account:
-    """按主键取账号，不存在则 404。"""
+    """按主键取账号，不存在则 404；分类不支持读信则立即失败。"""
     account = db.get(Account, account_id)
     if account is None:
         raise HTTPException(status_code=404, detail="账号不存在")
+    spec = get_account_type(account.account_type)
+    if not spec.supports_mail:
+        raise HTTPException(status_code=400, detail=f"「{spec.label}」不支持查看邮件")
     return account
 
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.account_types import get_account_type
 from app.config import UNGROUPED_LABEL
 from app.db import get_db
 from app.models import Account
@@ -25,10 +26,14 @@ router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
 def _to_out(account: Account) -> AccountOut:
     """序列化账号；无分组时名称为未分组。"""
+    spec = get_account_type(account.account_type)
     return AccountOut(
         id=account.id,
         group_id=account.group_id,
         group_name=account.group.name if account.group is not None else UNGROUPED_LABEL,
+        account_type=spec.code,
+        account_type_label=spec.label,
+        supports_mail=spec.supports_mail,
         email=account.email,
         password=account.password,
         client_id=account.client_id,
@@ -45,6 +50,7 @@ def list_accounts(
     q: str | None = Query(default=None),
     group_id: int | None = Query(default=None),
     ungrouped: bool = Query(default=False),
+    account_type: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[AccountOut]:
     if ungrouped and group_id is not None:
@@ -62,6 +68,12 @@ def list_accounts(
         stmt = stmt.where(Account.group_id.is_(None))
     elif group_id is not None:
         stmt = stmt.where(Account.group_id == group_id)
+    if account_type:
+        try:
+            spec = get_account_type(account_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        stmt = stmt.where(Account.account_type == spec.code)
     return [_to_out(account) for account in db.scalars(stmt).unique().all()]
 
 
@@ -78,7 +90,7 @@ def get_account(account_id: int, db: Session = Depends(get_db)) -> AccountOut:
 @router.post("/import/preview", response_model=ImportPreviewOut)
 def preview_accounts(body: ImportTextBody, db: Session = Depends(get_db)) -> ImportPreviewOut:
     try:
-        preview = preview_import(db, body.text)
+        preview = preview_import(db, body.text, body.account_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ImportPreviewOut(
@@ -91,7 +103,14 @@ def preview_accounts(body: ImportTextBody, db: Session = Depends(get_db)) -> Imp
 @router.post("/import", response_model=ImportResultOut)
 def import_accounts(body: ImportApplyBody, db: Session = Depends(get_db)) -> ImportResultOut:
     try:
-        result = apply_import(db, body.text, body.group_id, body.conflict_mode, body.wipe_all)
+        result = apply_import(
+            db,
+            body.text,
+            body.group_id,
+            body.conflict_mode,
+            body.wipe_all,
+            body.account_type,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ImportResultOut(inserted=result.inserted, updated=result.updated, wiped=result.wiped)

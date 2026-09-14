@@ -18,10 +18,20 @@ class GroupWriteBody(BaseModel):
     name: str = Field(min_length=1, max_length=64)
 
 
+class AccountTypeOut(BaseModel):
+    code: str
+    label: str
+    import_hint: str
+    supports_mail: bool
+
+
 class AccountOut(BaseModel):
     id: int
     group_id: int | None
     group_name: str
+    account_type: str
+    account_type_label: str
+    supports_mail: bool
     email: str
     password: str
     client_id: str
@@ -36,10 +46,12 @@ class AccountOut(BaseModel):
 
 class ImportTextBody(BaseModel):
     text: str = Field(min_length=1)
+    account_type: str = Field(min_length=1)
 
 
 class ImportApplyBody(BaseModel):
     text: str = Field(min_length=1)
+    account_type: str = Field(min_length=1)
     group_id: int | None = None
     conflict_mode: Literal["append", "replace_latest"] | None = None
     wipe_all: bool = False

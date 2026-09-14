@@ -117,17 +117,27 @@ def _rebuild_accounts_nullable_group() -> None:
 
 
 def _ensure_account_columns() -> None:
-    """为旧库补上令牌说明与换票入口列。"""
+    """为旧库补上令牌说明、换票入口与账号分类列。"""
     columns = _table_columns("accounts")
+    if not columns:
+        return
     with engine.begin() as conn:
         if "token_error" not in columns:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN token_error TEXT"))
         if "token_endpoint" not in columns:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN token_endpoint VARCHAR(160)"))
+        if "account_type" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE accounts ADD COLUMN account_type VARCHAR(32) "
+                    "NOT NULL DEFAULT 'outlook_four'"
+                )
+            )
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_accounts_account_type ON accounts (account_type)"))
 
 
 def ensure_schema() -> None:
-    """创建缺表，补齐 group_id，并清除旧的默认分组。"""
+    """创建缺表，补齐 group_id 与分类列，并清除旧的默认分组。"""
     from app.models import Account
 
     Base.metadata.create_all(bind=engine)

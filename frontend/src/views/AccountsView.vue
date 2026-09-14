@@ -6,6 +6,7 @@ import {
   batchDeleteAccounts,
   batchMoveAccounts,
   deleteAccount,
+  listAccountTypes,
   listAccounts,
   listGroups,
   previewImport,
@@ -15,9 +16,12 @@ import { formatDateTime, tokenErrorHint, tokenStatusLabel } from "../format";
 const router = useRouter();
 const accounts = ref([]);
 const groups = ref([]);
+const accountTypes = ref([]);
 const keyword = ref("");
 const filterGroupId = ref("");
+const filterAccountType = ref("");
 const importGroupId = ref("");
+const importAccountType = ref("");
 const selectedIds = ref([]);
 const loading = ref(false);
 const batchBusy = ref(false);
@@ -50,12 +54,19 @@ async function loadGroups() {
 }
 
 /**
+ * 读取系统账号分类，供筛选与导入下拉使用。
+ */
+async function loadAccountTypes() {
+  accountTypes.value = await listAccountTypes();
+}
+
+/**
  * 拉取账号列表并写入页面状态。
  */
 async function loadAccounts() {
   loading.value = true;
   try {
-    accounts.value = await listAccounts(keyword.value, filterGroupId.value);
+    accounts.value = await listAccounts(keyword.value, filterGroupId.value, filterAccountType.value);
     selectedIds.value = [];
   } catch (error) {
     setMessage(error.message, "error");
@@ -81,6 +92,24 @@ function selectedImportGroupId() {
   }
   return Number(importGroupId.value);
 }
+
+/**
+ * 导入必须先选分类；未选则立即失败。
+ */
+function selectedImportType() {
+  const code = importAccountType.value;
+  if (!code) {
+    throw new Error("请选择账号分类");
+  }
+  return code;
+}
+
+/**
+ * 当前导入弹窗所选分类的说明文案。
+ */
+const importTypeSpec = computed(() => {
+  return accountTypes.value.find((item) => item.code === importAccountType.value) || null;
+});
 
 function isSelected(id) {
   return selectedIds.value.includes(id);
@@ -111,10 +140,12 @@ function selectedMoveGroupId() {
 
 async function openImport() {
   importText.value = "";
+  importAccountType.value = "";
   showConflict.value = false;
   showWipeConfirm.value = false;
   try {
     await loadGroups();
+    await loadAccountTypes();
     showImport.value = true;
   } catch (error) {
     setMessage(error.message, "error");
@@ -135,10 +166,11 @@ async function submitImport() {
   const text = importText.value;
   importBusy.value = true;
   try {
+    const accountType = selectedImportType();
     const groupId = selectedImportGroupId();
-    const preview = await previewImport(text);
+    const preview = await previewImport(text, accountType);
     if (preview.conflict_emails.length === 0) {
-      const result = await applyImport(text, groupId, null, false);
+      const result = await applyImport(text, groupId, null, false, accountType);
       closeImport();
       setMessage(`已导入 ${result.inserted} 条`, "ok");
       await loadAccounts();
@@ -160,7 +192,13 @@ async function submitImport() {
 async function resolveConflict(mode) {
   importBusy.value = true;
   try {
-    const result = await applyImport(pendingText.value, selectedImportGroupId(), mode, false);
+    const result = await applyImport(
+      pendingText.value,
+      selectedImportGroupId(),
+      mode,
+      false,
+      selectedImportType()
+    );
     closeImport();
     const parts = [`新增 ${result.inserted} 条`];
     if (result.updated) {
@@ -178,7 +216,13 @@ async function resolveConflict(mode) {
 async function wipeAndImport() {
   importBusy.value = true;
   try {
-    const result = await applyImport(importText.value, selectedImportGroupId(), null, true);
+    const result = await applyImport(
+      importText.value,
+      selectedImportGroupId(),
+      null,
+      true,
+      selectedImportType()
+    );
     closeImport();
     setMessage(`已清空后导入 ${result.inserted} 条`, "ok");
     await loadAccounts();
@@ -252,6 +296,7 @@ function openMail(row) {
 onMounted(async () => {
   try {
     await loadGroups();
+    await loadAccountTypes();
   } catch (error) {
     setMessage(error.message, "error");
   }
@@ -263,7 +308,7 @@ onMounted(async () => {
   <div class="page-head">
     <div>
       <h1>账号管理</h1>
-      <p>可勾选后批量删除或移至分组。导入不选分组则为未分组。</p>
+      <p>导入须先选择账号分类。可勾选后批量删除或移至分组。导入不选分组则为未分组。</p>
     </div>
   </div>
 
@@ -275,6 +320,12 @@ onMounted(async () => {
       placeholder="搜索邮箱地址"
       @keyup.enter="loadAccounts"
     />
+    <select v-model="filterAccountType" class="search filter" @change="loadAccounts">
+      <option value="">全部分类</option>
+      <option v-for="item in accountTypes" :key="item.code" :value="item.code">
+        {{ item.label }}
+      </option>
+    </select>
     <select v-model="filterGroupId" class="search filter" @change="loadAccounts">
       <option value="">全部</option>
       <option value="none">未分组</option>
@@ -297,7 +348,7 @@ onMounted(async () => {
 
   <div class="panel">
     <p v-if="loading" class="empty">加载中…</p>
-    <p v-else-if="accounts.length === 0" class="empty">还没有账号，先导入四段凭证。</p>
+    <p v-else-if="accounts.length === 0" class="empty">还没有账号，先选择分类并导入。</p>
     <table v-else>
       <thead>
         <tr>
@@ -307,6 +358,7 @@ onMounted(async () => {
           <th>#</th>
           <th>邮箱</th>
           <th>密码</th>
+          <th>分类</th>
           <th>分组</th>
           <th>导入时间</th>
           <th>令牌状态</th>
@@ -321,6 +373,7 @@ onMounted(async () => {
           <td class="mono">{{ index + 1 }}</td>
           <td>{{ row.email }}</td>
           <td>{{ row.password }}</td>
+          <td>{{ row.account_type_label }}</td>
           <td>{{ row.group_name }}</td>
           <td class="mono">{{ formatDateTime(row.imported_at) }}</td>
           <td>
@@ -335,7 +388,14 @@ onMounted(async () => {
           </td>
           <td>
             <div class="row-actions">
-              <button class="linkish" type="button" @click="openMail(row)">查看</button>
+              <button
+                v-if="row.supports_mail"
+                class="linkish"
+                type="button"
+                @click="openMail(row)"
+              >
+                查看
+              </button>
               <button class="linkish danger" type="button" @click="removeAccount(row)">删除</button>
             </div>
           </td>
@@ -346,10 +406,18 @@ onMounted(async () => {
 
   <div v-if="showImport" class="overlay" @click.self="closeImport">
     <div class="modal">
-      <h2>导入邮箱账号</h2>
+      <h2>导入账号</h2>
+      <label class="field">
+        <span>账号分类</span>
+        <select v-model="importAccountType" class="search">
+          <option value="">请选择分类</option>
+          <option v-for="item in accountTypes" :key="item.code" :value="item.code">
+            {{ item.label }}
+          </option>
+        </select>
+      </label>
       <p class="hint">
-        每行一个账号，四个字段必须完整，用 Tab 或 ---- 分隔：<br />
-        邮箱地址----密码----Client ID----刷新令牌
+        {{ importTypeSpec ? importTypeSpec.import_hint : "请先选择账号分类，再粘贴对应格式的账号。" }}
       </p>
       <label class="field">
         <span>导入到分组</span>
@@ -362,12 +430,31 @@ onMounted(async () => {
       </label>
       <textarea
         v-model="importText"
-        placeholder="user@outlook.com----password----client-id----refresh-token"
+        :disabled="!importAccountType"
+        :placeholder="
+          importAccountType
+            ? 'user@outlook.com----password----client-id----refresh-token'
+            : '请先选择账号分类'
+        "
       />
       <div class="modal-actions">
         <button class="btn btn-ghost" type="button" @click="closeImport">取消</button>
-        <button class="btn btn-danger" type="button" @click="showWipeConfirm = true">清空后导入</button>
-        <button class="btn" type="button" :disabled="importBusy" @click="submitImport">导入</button>
+        <button
+          class="btn btn-danger"
+          type="button"
+          :disabled="!importAccountType"
+          @click="showWipeConfirm = true"
+        >
+          清空后导入
+        </button>
+        <button
+          class="btn"
+          type="button"
+          :disabled="importBusy || !importAccountType"
+          @click="submitImport"
+        >
+          导入
+        </button>
       </div>
     </div>
   </div>
@@ -375,7 +462,9 @@ onMounted(async () => {
   <div v-if="showConflict" class="overlay">
     <div class="modal">
       <h2>发现 {{ conflictEmails.length }} 个重复邮箱</h2>
-      <p class="hint">追加会新增一条版本；覆盖只更新该邮箱最新一条，更早的版本保留。本次都会写入所选分组（含未分组）。</p>
+      <p class="hint">
+        仅针对当前所选分类。追加会新增一条版本；覆盖只更新该邮箱最新一条，更早的版本保留。本次都会写入所选分组（含未分组）。
+      </p>
       <ul class="conflict-list">
         <li v-for="email in conflictEmails" :key="email">{{ email }}</li>
       </ul>
@@ -394,7 +483,9 @@ onMounted(async () => {
   <div v-if="showWipeConfirm" class="overlay">
     <div class="modal">
       <h2>清空后导入</h2>
-      <p class="hint">会删除当前全部账号，再写入本次文本。分组选择含未分组。此操作不可撤销。</p>
+      <p class="hint">
+        会删除当前所选分类下的全部账号，再写入本次文本。其他分类不受影响。分组本身保留。此操作不可撤销。
+      </p>
       <div class="modal-actions">
         <button class="btn btn-ghost" type="button" @click="showWipeConfirm = false">取消</button>
         <button class="btn btn-danger" type="button" :disabled="importBusy" @click="wipeAndImport">确认清空并导入</button>
