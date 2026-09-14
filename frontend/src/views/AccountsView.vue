@@ -7,6 +7,7 @@ import {
   batchMoveAccounts,
   deleteAccount,
   getAccountImportInfo,
+  getLatestMessage,
   listAccountTypes,
   listAccounts,
   listGroups,
@@ -45,6 +46,10 @@ const infoBusy = ref(false);
 const infoCopyHint = ref("");
 const importInfo = ref(null);
 const infoEmail = ref("");
+const showLatestMail = ref(false);
+const latestMailBusy = ref(false);
+const latestMailEmail = ref("");
+const latestMail = ref(null);
 
 const selectedCount = computed(() => selectedIds.value.length);
 const allSelected = computed(
@@ -276,6 +281,43 @@ function openMail(row) {
 }
 
 /**
+ * 弹窗一次拉取该账号收件箱最新一封（含正文）。
+ */
+async function openLatestMail(row) {
+  latestMailEmail.value = row.email;
+  latestMail.value = null;
+  showLatestMail.value = true;
+  latestMailBusy.value = true;
+  try {
+    latestMail.value = await getLatestMessage(row.id);
+    await loadAccounts();
+  } catch (error) {
+    showLatestMail.value = false;
+    setMessage(error.message, "error");
+    try {
+      await loadAccounts();
+    } catch {
+      return;
+    }
+  } finally {
+    latestMailBusy.value = false;
+  }
+}
+
+function closeLatestMail() {
+  showLatestMail.value = false;
+  latestMail.value = null;
+  latestMailEmail.value = "";
+}
+
+const latestMailFrameBody = computed(() => {
+  if (!latestMail.value || latestMail.value.body_type !== "html") {
+    return "";
+  }
+  return latestMail.value.body_content;
+});
+
+/**
  * 打开导入信息弹窗，按需拉取四段凭证。
  */
 async function openInfo(row) {
@@ -414,6 +456,14 @@ onMounted(async () => {
                 v-if="row.supports_mail"
                 class="linkish"
                 type="button"
+                @click="openLatestMail(row)"
+              >
+                最新邮件
+              </button>
+              <button
+                v-if="row.supports_mail"
+                class="linkish"
+                type="button"
                 @click="openMail(row)"
               >
                 查看邮件
@@ -460,6 +510,32 @@ onMounted(async () => {
         >
           复制整行
         </button>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="showLatestMail" class="overlay" @click.self="closeLatestMail">
+    <div class="modal modal-mail">
+      <h2>最新邮件</h2>
+      <p class="hint">{{ latestMailEmail }} 收件箱按时间最新的一封。</p>
+      <p v-if="latestMailBusy" class="hint">加载中…</p>
+      <template v-else-if="latestMail">
+        <h3 class="mail-subject">{{ latestMail.subject || "（无主题）" }}</h3>
+        <p class="mail-meta">
+          {{ latestMail.from_name }} &lt;{{ latestMail.from_address }}&gt; ·
+          {{ formatDateTime(latestMail.received_at) }}
+        </p>
+        <iframe
+          v-if="latestMail.body_type === 'html'"
+          class="mail-frame mail-frame-modal"
+          sandbox=""
+          referrerpolicy="no-referrer"
+          :srcdoc="latestMailFrameBody"
+        />
+        <div v-else class="mail-body-text">{{ latestMail.body_content || "（无正文）" }}</div>
+      </template>
+      <div class="modal-actions">
+        <button class="btn" type="button" @click="closeLatestMail">关闭</button>
       </div>
     </div>
   </div>

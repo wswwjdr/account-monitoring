@@ -110,6 +110,13 @@ export function listMessages(accountId, top = 50) {
   return request(`/api/accounts/${accountId}/messages?top=${top}`);
 }
 
+/**
+ * 一次请求读取该账号收件箱最新一封（含正文）。
+ */
+export function getLatestMessage(accountId) {
+  return request(`/api/accounts/${accountId}/latest-message`);
+}
+
 export function getMessage(accountId, messageId) {
   return request(`/api/accounts/${accountId}/messages/${encodeURIComponent(messageId)}`);
 }

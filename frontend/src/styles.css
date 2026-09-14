@@ -406,6 +406,24 @@ tbody tr:hover {
   margin-top: 16px;
 }
 
+.modal-mail {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.mail-subject {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mail-frame-modal {
+  min-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
 .conflict-list {
   margin: 0 0 12px;
   padding-left: 18px;

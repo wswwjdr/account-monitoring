@@ -82,6 +82,19 @@ def list_messages(access_token: str, top: int) -> list[MessageSummary]:
     return [_to_summary(item) for item in items]
 
 
+def _to_detail(item: dict[str, Any]) -> MessageDetail:
+    """把含 body 的 Graph message 映射成详情模型。"""
+    summary = _to_summary(item)
+    body = item.get("body") or {}
+    content = body.get("content")
+    content_type = body.get("contentType") or "text"
+    return MessageDetail(
+        **summary.model_dump(),
+        body_content=content if isinstance(content, str) else "",
+        body_type=str(content_type).lower(),
+    )
+
+
 def get_message(access_token: str, message_id: str) -> MessageDetail:
     """读取单封邮件正文。"""
     if not message_id:
@@ -92,13 +105,23 @@ def get_message(access_token: str, message_id: str) -> MessageDetail:
     response = graph_get(access_token, f"/me/messages/{message_id}", params)
     if response.status_code != 200:
         raise GraphApiError(_graph_error_message(response), response.status_code)
-    item = response.json()
-    summary = _to_summary(item)
-    body = item.get("body") or {}
-    content = body.get("content")
-    content_type = body.get("contentType") or "text"
-    return MessageDetail(
-        **summary.model_dump(),
-        body_content=content if isinstance(content, str) else "",
-        body_type=str(content_type).lower(),
-    )
+    return _to_detail(response.json())
+
+
+def get_latest_message(access_token: str) -> MessageDetail | None:
+    """一次 Graph 请求取收件箱最新一封（含正文）；无邮件返回 None。"""
+    params = {
+        "$top": "1",
+        "$select": "id,subject,from,receivedDateTime,isRead,bodyPreview,body",
+        "$orderby": "receivedDateTime desc",
+    }
+    response = graph_get(access_token, "/me/messages", params)
+    if response.status_code != 200:
+        raise GraphApiError(_graph_error_message(response), response.status_code)
+    payload = response.json()
+    items = payload.get("value")
+    if not isinstance(items, list):
+        raise GraphApiError("邮件列表响应缺少 value")
+    if not items:
+        return None
+    return _to_detail(items[0])

@@ -8,7 +8,7 @@ from app.config import DEFAULT_MESSAGE_TOP, MAX_MESSAGE_TOP
 from app.db import get_db
 from app.models import Account
 from app.schemas import MessageDetail, MessageSummary
-from app.services.graph_mail import GraphApiError, get_message, list_messages
+from app.services.graph_mail import GraphApiError, get_latest_message, get_message, list_messages
 from app.services.ms_auth import TokenRefreshError, ensure_access_token
 
 router = APIRouter(prefix="/api/accounts", tags=["mails"])
@@ -56,6 +56,19 @@ def read_messages(
 ) -> list[MessageSummary]:
     account = _require_account(db, account_id)
     return _with_graph_retry(db, account, lambda token: list_messages(token, top))
+
+
+@router.get("/{account_id}/latest-message", response_model=MessageDetail)
+def read_latest_message(
+    account_id: int,
+    db: Session = Depends(get_db),
+) -> MessageDetail:
+    """一次拉取该账号收件箱最新一封（含正文）；空收件箱返回 404。"""
+    account = _require_account(db, account_id)
+    detail = _with_graph_retry(db, account, get_latest_message)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="收件箱没有邮件")
+    return detail
 
 
 @router.get("/{account_id}/messages/{message_id:path}", response_model=MessageDetail)
