@@ -70,7 +70,10 @@ export function previewImport(text, accountType) {
   });
 }
 
-export function applyImport(text, groupId, conflictMode, wipeAll, accountType) {
+/**
+ * 按冲突策略写入账号；无重复时 conflictMode 传 null。
+ */
+export function applyImport(text, groupId, conflictMode, accountType) {
   return request("/api/accounts/import", {
     method: "POST",
     body: JSON.stringify({
@@ -78,7 +81,6 @@ export function applyImport(text, groupId, conflictMode, wipeAll, accountType) {
       account_type: accountType,
       group_id: groupId == null ? null : groupId,
       conflict_mode: conflictMode,
-      wipe_all: Boolean(wipeAll),
     }),
   });
 }

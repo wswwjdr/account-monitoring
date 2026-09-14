@@ -1,8 +1,8 @@
-"""账号导入：预览冲突、追加新版本、覆盖最新、清空后导入。冲突与清空均限定在所选分类内。"""
+"""账号导入：预览冲突、追加新版本、覆盖最新。冲突限定在所选分类内。"""
 
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.account_types import require_account_type
@@ -26,7 +26,6 @@ class ImportResult:
 
     inserted: int
     updated: int
-    wiped: bool
 
 
 def _existing_email_keys(db: Session, account_type: str) -> set[str]:
@@ -115,20 +114,12 @@ def apply_import(
     text: str,
     group_id: int | None,
     conflict_mode: str | None,
-    wipe_all: bool,
     account_type: str,
 ) -> ImportResult:
-    """按模式写入账号。group_id 为空表示未分组。清空与冲突均只作用于所选分类。"""
+    """按模式写入账号。group_id 为空表示未分组。冲突只作用于所选分类。"""
     code = require_account_type(account_type)
     resolved_group_id = resolve_group_id(db, group_id)
     rows = parse_import_text(text, code)
-    if wipe_all:
-        db.execute(delete(Account).where(Account.account_type == code))
-        db.flush()
-        for row in rows:
-            db.add(_new_account(row, resolved_group_id, code))
-        db.commit()
-        return ImportResult(inserted=len(rows), updated=0, wiped=True)
 
     existing = _existing_email_keys(db, code)
     conflict_keys = {normalize_email(row.email) for row in rows if normalize_email(row.email) in existing}
@@ -153,4 +144,4 @@ def apply_import(
         inserted += 1
 
     db.commit()
-    return ImportResult(inserted=inserted, updated=updated, wiped=False)
+    return ImportResult(inserted=inserted, updated=updated)

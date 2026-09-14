@@ -132,12 +132,11 @@ def import_accounts(body: ImportApplyBody, db: Session = Depends(get_db)) -> Imp
             body.text,
             body.group_id,
             body.conflict_mode,
-            body.wipe_all,
             body.account_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return ImportResultOut(inserted=result.inserted, updated=result.updated, wiped=result.wiped)
+    return ImportResultOut(inserted=result.inserted, updated=result.updated)
 
 
 @router.post("/batch/delete", response_model=BatchChangeOut)

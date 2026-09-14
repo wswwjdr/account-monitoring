@@ -62,7 +62,6 @@ class ImportApplyBody(BaseModel):
     account_type: str = Field(min_length=1)
     group_id: int | None = None
     conflict_mode: Literal["append", "replace_latest"] | None = None
-    wipe_all: bool = False
 
 
 class ImportPreviewOut(BaseModel):
@@ -74,7 +73,6 @@ class ImportPreviewOut(BaseModel):
 class ImportResultOut(BaseModel):
     inserted: int
     updated: int
-    wiped: bool
 
 
 class AccountIdsBody(BaseModel):

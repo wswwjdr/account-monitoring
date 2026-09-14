@@ -34,7 +34,6 @@ const importBusy = ref(false);
 const showConflict = ref(false);
 const conflictEmails = ref([]);
 const pendingText = ref("");
-const showWipeConfirm = ref(false);
 const showBatchDelete = ref(false);
 const showBatchMove = ref(false);
 const moveGroupId = ref("");
@@ -148,7 +147,6 @@ async function openImport() {
   importText.value = "";
   importAccountType.value = "";
   showConflict.value = false;
-  showWipeConfirm.value = false;
   try {
     await loadGroups();
     await loadAccountTypes();
@@ -161,7 +159,6 @@ async function openImport() {
 function closeImport() {
   showImport.value = false;
   showConflict.value = false;
-  showWipeConfirm.value = false;
   pendingText.value = "";
 }
 
@@ -176,7 +173,7 @@ async function submitImport() {
     const groupId = selectedImportGroupId();
     const preview = await previewImport(text, accountType);
     if (preview.conflict_emails.length === 0) {
-      const result = await applyImport(text, groupId, null, false, accountType);
+      const result = await applyImport(text, groupId, null, accountType);
       closeImport();
       setMessage(`已导入 ${result.inserted} 条`, "ok");
       await loadAccounts();
@@ -202,7 +199,6 @@ async function resolveConflict(mode) {
       pendingText.value,
       selectedImportGroupId(),
       mode,
-      false,
       selectedImportType()
     );
     closeImport();
@@ -211,26 +207,6 @@ async function resolveConflict(mode) {
       parts.push(`覆盖 ${result.updated} 条`);
     }
     setMessage(parts.join("，"), "ok");
-    await loadAccounts();
-  } catch (error) {
-    setMessage(error.message, "error");
-  } finally {
-    importBusy.value = false;
-  }
-}
-
-async function wipeAndImport() {
-  importBusy.value = true;
-  try {
-    const result = await applyImport(
-      importText.value,
-      selectedImportGroupId(),
-      null,
-      true,
-      selectedImportType()
-    );
-    closeImport();
-    setMessage(`已清空后导入 ${result.inserted} 条`, "ok");
     await loadAccounts();
   } catch (error) {
     setMessage(error.message, "error");
@@ -524,14 +500,6 @@ onMounted(async () => {
       <div class="modal-actions">
         <button class="btn btn-ghost" type="button" @click="closeImport">取消</button>
         <button
-          class="btn btn-danger"
-          type="button"
-          :disabled="!importAccountType"
-          @click="showWipeConfirm = true"
-        >
-          清空后导入
-        </button>
-        <button
           class="btn"
           type="button"
           :disabled="importBusy || !importAccountType"
@@ -560,19 +528,6 @@ onMounted(async () => {
         <button class="btn" type="button" :disabled="importBusy" @click="resolveConflict('append')">
           追加新版本
         </button>
-      </div>
-    </div>
-  </div>
-
-  <div v-if="showWipeConfirm" class="overlay">
-    <div class="modal">
-      <h2>清空后导入</h2>
-      <p class="hint">
-        会删除当前所选分类下的全部账号，再写入本次文本。其他分类不受影响。分组本身保留。此操作不可撤销。
-      </p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" type="button" @click="showWipeConfirm = false">取消</button>
-        <button class="btn btn-danger" type="button" :disabled="importBusy" @click="wipeAndImport">确认清空并导入</button>
       </div>
     </div>
   </div>
